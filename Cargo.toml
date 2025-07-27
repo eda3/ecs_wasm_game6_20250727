@@ -1,0 +1,83 @@
+[package]
+name = "ecs_wasm_solitaire"
+version = "0.1.0"
+edition = "2021"
+
+# WebAssembly向けのライブラリクレートとして設定
+[lib]
+crate-type = ["cdylib"]
+
+# 開発・テスト用のバイナリクレート設定
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+# WebSocketサーバー用のバイナリクレート設定
+[[bin]]
+name = "websocket_server"
+path = "src/websocket_server.rs"
+
+# シンプルWebSocketサーバー用のバイナリクレート設定
+[[bin]]
+name = "simple_websocket_server"
+path = "src/simple_websocket_server.rs"
+
+[dependencies]
+# WebAssemblyバインディング用（オプション機能を追加）
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"], optional = true }
+
+# JavaScript APIへのバインディング（オプション）
+js-sys = { version = "0.3", optional = true }
+
+# Web APIへのバインディング（オプション）
+web-sys = { version = "0.3", features = [
+  "console",
+  "Window",
+  "Document",
+  "Element",
+  "HtmlElement",
+  "WebSocket",
+  "MessageEvent",
+  "CloseEvent",
+  "ErrorEvent",
+  "Event",
+  "EventTarget",
+  "BinaryType",
+], optional = true }
+
+# シリアライゼーション用
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# WebSocketサーバー用の依存関係
+tokio = { version = "1.0", features = ["full"], optional = true }
+tokio-tungstenite = { version = "0.20", optional = true }
+futures-util = { version = "0.3", optional = true }
+uuid = { version = "1.0", features = ["v4"], optional = true }
+
+# WebAssembly用のコンソールログ出力（オプション）
+wasm-bindgen-futures = { version = "0.4", optional = true }
+
+# パニック時のエラー情報をコンソールに出力（オプション）
+console_error_panic_hook = { version = "0.1", optional = true }
+
+# 開発時の依存関係
+wee_alloc = { version = "0.4.5", optional = true }
+
+# プロファイル設定：最適化レベルの調整
+[profile.release]
+# 最小サイズでの最適化（WebAssembly向け）
+opt-level = "s"
+# リンク時最適化を有効化
+lto = true
+
+# WebAssembly パッケージのメタデータ
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Oz", "--enable-mutable-globals"]
+
+# 機能フラグ
+[features]
+default = []
+wasm = ["wasm-bindgen", "js-sys", "web-sys", "wasm-bindgen-futures", "console_error_panic_hook"]
+wee_alloc = ["dep:wee_alloc"]
+server = ["tokio", "tokio-tungstenite", "futures-util", "uuid"]

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket接続テスト</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        #messages {
+            border: 1px solid #ddd;
+            height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            background: #f8f9fa;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .message {
+            margin: 2px 0;
+            padding: 2px;
+        }
+        .sent { color: #007bff; }
+        .received { color: #28a745; }
+        .error-msg { color: #dc3545; }
+        .player-join { color: #17a2b8; font-weight: bold; }
+        .player-left { color: #fd7e14; font-weight: bold; }
+        .mouse-position { color: #6f42c1; }
+        .game-action { color: #e83e8c; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 WebSocket接続テスト</h1>
+        
+        <div id="connectionStatus" class="status info">
+            🔄 接続待機中...
+        </div>
+        
+        <div>
+            <button id="connectBtn">🌐 接続テスト</button>
+            <button id="disconnectBtn" disabled>❌ 切断</button>
+            <button id="sendTestBtn" disabled>📤 テストメッセージ送信</button>
+            <button id="sendMouseBtn" disabled>🖱️ マウス位置送信</button>
+            <button id="sendActionBtn" disabled>🎯 ゲームアクション送信</button>
+            <button id="clearBtn">🗑️ ログクリア</button>
+        </div>
+        
+        <h3>📊 接続情報</h3>
+        <div>
+            <strong>サーバーURL:</strong> <span id="serverUrl">ws://162.43.8.148:8101</span><br>
+            <strong>プレイヤー名:</strong> <span id="currentPlayerName">-</span><br>
+            <strong>プレイヤーID:</strong> <span id="currentPlayerId">-</span><br>
+            <strong>接続時刻:</strong> <span id="connectTime">-</span><br>
+            <strong>送信メッセージ数:</strong> <span id="sentCount">0</span><br>
+            <strong>受信メッセージ数:</strong> <span id="receivedCount">0</span>
+        </div>
+        
+        <h3>📝 通信ログ</h3>
+        <div id="messages"></div>
+    </div>
+
+    <script>
+        // グローバル変数
+        let webSocket = null;
+        let sentCount = 0;
+        let receivedCount = 0;
+        let playerId = null;
+        let playerName = null;
+        
+        // DOM要素
+        const elements = {
+            status: document.getElementById('connectionStatus'),
+            connectBtn: document.getElementById('connectBtn'),
+            disconnectBtn: document.getElementById('disconnectBtn'),
+            sendTestBtn: document.getElementById('sendTestBtn'),
+            sendMouseBtn: document.getElementById('sendMouseBtn'),
+            sendActionBtn: document.getElementById('sendActionBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            serverUrl: document.getElementById('serverUrl'),
+            currentPlayerName: document.getElementById('currentPlayerName'),
+            currentPlayerId: document.getElementById('currentPlayerId'),
+            connectTime: document.getElementById('connectTime'),
+            sentCount: document.getElementById('sentCount'),
+            receivedCount: document.getElementById('receivedCount'),
+            messages: document.getElementById('messages')
+        };
+        
+        // ログ表示関数
+        function addLog(message, type = 'info') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+            elements.messages.appendChild(messageDiv);
+            elements.messages.scrollTop = elements.messages.scrollHeight;
+        }
+        
+        // 状態更新関数
+        function updateStatus(message, type = 'info') {
+            elements.status.textContent = message;
+            elements.status.className = `status ${type}`;
+        }
+        
+        // カウンター更新
+        function updateCounters() {
+            elements.sentCount.textContent = sentCount;
+            elements.receivedCount.textContent = receivedCount;
+        }
+        
+        // 接続テスト
+        function connectToWebSocket() {
+            const serverUrl = 'ws://162.43.8.148:8101';
+            
+            try {
+                updateStatus('🔄 接続中...', 'info');
+                addLog('WebSocket接続を開始します...', 'info');
+                
+                webSocket = new WebSocket(serverUrl);
+                
+                webSocket.onopen = function(event) {
+                    updateStatus('✅ 接続成功', 'success');
+                    addLog('WebSocket接続に成功しました！', 'received');
+                    
+                    elements.connectTime.textContent = new Date().toLocaleString();
+                    elements.connectBtn.disabled = true;
+                    elements.disconnectBtn.disabled = false;
+                    elements.sendTestBtn.disabled = false;
+                    elements.sendMouseBtn.disabled = false;
+                    elements.sendActionBtn.disabled = false;
+                    
+                    // プレイヤー参加メッセージを送信
+                    playerId = `test_player_${Date.now()}`;
+                    const randomNames = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank', 'Grace', 'Henry'];
+                    const randomName = randomNames[Math.floor(Math.random() * randomNames.length)];
+                    playerName = `${randomName}_${Date.now().toString().slice(-4)}`;
+                    
+                    const joinMessage = {
+                        type: 'PlayerJoin',
+                        player_id: playerId,
+                        player_name: playerName
+                    };
+                    
+                    webSocket.send(JSON.stringify(joinMessage));
+                    sentCount++;
+                    updateCounters();
+                    addLog(`送信: ${JSON.stringify(joinMessage)}`, 'sent');
+                    
+                    // プレイヤー情報を表示
+                    elements.currentPlayerName.textContent = playerName;
+                    elements.currentPlayerId.textContent = playerId;
+                };
+                
+                webSocket.onmessage = function(event) {
+                    receivedCount++;
+                    updateCounters();
+                    
+                    try {
+                        const message = JSON.parse(event.data);
+                        handleReceivedMessage(message);
+                    } catch (e) {
+                        addLog(`❌ JSON解析エラー: ${e.message}`, 'error-msg');
+                        addLog(`生データ: ${event.data}`, 'received');
+                    }
+                };
+                
+                webSocket.onclose = function(event) {
+                    updateStatus('❌ 接続終了', 'error');
+                    addLog(`接続が終了されました (コード: ${event.code})`, 'error-msg');
+                    resetConnectionState();
+                };
+                
+                webSocket.onerror = function(error) {
+                    updateStatus('❌ 接続エラー', 'error');
+                    addLog(`WebSocketエラー: ${error.message || '接続に失敗しました'}`, 'error-msg');
+                    resetConnectionState();
+                };
+                
+            } catch (error) {
+                updateStatus('❌ 接続失敗', 'error');
+                addLog(`接続エラー: ${error.message}`, 'error-msg');
+                resetConnectionState();
+            }
+        }
+        
+        // 受信メッセージを処理
+        function handleReceivedMessage(message) {
+            const messageType = message.type || 'Unknown';
+            
+            switch (messageType) {
+                case 'PlayerJoin':
+                    addLog(`👤 プレイヤー参加: ${message.player_name} (ID: ${message.player_id})`, 'player-join');
+                    break;
+                    
+                case 'PlayerLeft':
+                    addLog(`👋 プレイヤー退出: ${message.player_name} (ID: ${message.player_id})`, 'player-left');
+                    break;
+                    
+                case 'MousePosition':
+                    if (message.player_id !== playerId) {
+                        addLog(`🖱️ ${message.player_id}: マウス位置 (${Math.round(message.x)}, ${Math.round(message.y)})`, 'mouse-position');
+                    }
+                    break;
+                    
+                case 'GameAction':
+                    if (message.player_id !== playerId) {
+                        const pos = message.x && message.y ? ` at (${Math.round(message.x)}, ${Math.round(message.y)})` : '';
+                        addLog(`🎯 ${message.player_name}: ${message.action}${pos}`, 'game-action');
+                    }
+                    break;
+                    
+                case 'Error':
+                    addLog(`❌ サーバーエラー: ${message.message}`, 'error-msg');
+                    break;
+                    
+                default:
+                    addLog(`📥 未知のメッセージタイプ: ${messageType}`, 'received');
+                    addLog(`データ: ${JSON.stringify(message)}`, 'received');
+            }
+        }
+        
+        // 接続状態をリセット
+        function resetConnectionState() {
+            elements.connectBtn.disabled = false;
+            elements.disconnectBtn.disabled = true;
+            elements.sendTestBtn.disabled = true;
+            elements.sendMouseBtn.disabled = true;
+            elements.sendActionBtn.disabled = true;
+            webSocket = null;
+        }
+        
+        // 切断
+        function disconnect() {
+            if (webSocket) {
+                webSocket.close();
+                addLog('手動で切断しました', 'info');
+            }
+        }
+        
+        // テストメッセージ送信
+        function sendTestMessage() {
+            if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                const testMessage = {
+                    type: 'GameAction',
+                    player_id: playerId,
+                    player_name: playerName || 'TestPlayer',
+                    action: 'テストアクション実行',
+                    x: Math.random() * 1000,
+                    y: Math.random() * 500,
+                    timestamp: Date.now()
+                };
+                
+                webSocket.send(JSON.stringify(testMessage));
+                sentCount++;
+                updateCounters();
+                addLog(`送信: ${JSON.stringify(testMessage)}`, 'sent');
+            }
+        }
+        
+        // マウス位置送信
+        function sendMousePosition() {
+            if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                const mouseMessage = {
+                    type: 'MousePosition',
+                    player_id: playerId,
+                    x: Math.random() * 1920,
+                    y: Math.random() * 1080,
+                    timestamp: Date.now()
+                };
+                
+                webSocket.send(JSON.stringify(mouseMessage));
+                sentCount++;
+                updateCounters();
+                addLog(`送信: マウス位置 (${Math.round(mouseMessage.x)}, ${Math.round(mouseMessage.y)})`, 'sent');
+            }
+        }
+        
+        // ゲームアクション送信
+        function sendGameAction() {
+            if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                const actions = [
+                    'カードクリック',
+                    'カードダブルクリック', 
+                    'デッキから引く',
+                    'ファウンデーションに配置',
+                    'タブローに移動'
+                ];
+                const randomAction = actions[Math.floor(Math.random() * actions.length)];
+                
+                const actionMessage = {
+                    type: 'GameAction',
+                    player_id: playerId,
+                    player_name: playerName || 'TestPlayer',
+                    action: randomAction,
+                    x: Math.random() * 1920,
+                    y: Math.random() * 1080,
+                    timestamp: Date.now()
+                };
+                
+                webSocket.send(JSON.stringify(actionMessage));
+                sentCount++;
+                updateCounters();
+                addLog(`送信: ゲームアクション "${randomAction}"`, 'sent');
+            }
+        }
+        
+        // ログクリア
+        function clearMessages() {
+            elements.messages.innerHTML = '';
+            addLog('ログをクリアしました', 'info');
+        }
+        
+        // イベントリスナー設定
+        elements.connectBtn.addEventListener('click', connectToWebSocket);
+        elements.disconnectBtn.addEventListener('click', disconnect);
+        elements.sendTestBtn.addEventListener('click', sendTestMessage);
+        elements.sendMouseBtn.addEventListener('click', sendMousePosition);
+        elements.sendActionBtn.addEventListener('click', sendGameAction);
+        elements.clearBtn.addEventListener('click', clearMessages);
+        
+        // 初期化
+        addLog('WebSocket接続テストツールを起動しました', 'info');
+        addLog('「接続テスト」ボタンをクリックして開始してください', 'info');
+    </script>
+</body>
+</html>

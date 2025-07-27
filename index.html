@@ -1,0 +1,2139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎴 ECS WASM マルチプレイソリティア</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            overflow-x: auto;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff4757;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background: #2ed573;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 140px);
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn.secondary {
+            background: linear-gradient(45deg, #54a0ff, #2e86de);
+            box-shadow: 0 4px 15px rgba(84, 160, 255, 0.3);
+        }
+
+        .btn.secondary:hover {
+            box-shadow: 0 6px 20px rgba(84, 160, 255, 0.4);
+        }
+
+        .btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .game-board {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            min-height: 500px;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 200px;
+            gap: 20px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .card-area {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        /* Windowsソリティア専用のスタイル */
+        .solitaire-board {
+            display: flex !important;
+            flex-direction: column;
+            gap: 30px;
+            padding: 20px;
+            background: #0f7b0f;
+            border-radius: 15px;
+            min-height: 600px;
+        }
+
+        .top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .deck-area {
+            display: flex;
+            gap: 20px;
+        }
+
+        .deck-slot, .waste-slot {
+            width: 80px;
+            height: 120px;
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .deck-card {
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .deck-card:hover {
+            transform: scale(1.05);
+        }
+
+        .foundation-area {
+            display: flex;
+            gap: 15px;
+        }
+
+        .foundation-slot {
+            width: 80px;
+            height: 120px;
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .foundation-placeholder {
+            color: rgba(255, 255, 255, 0.6);
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .tableau-area {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .tableau-column {
+            width: 80px;
+            min-height: 200px;
+            position: relative;
+        }
+
+        .tableau-card {
+            width: 80px;
+            height: 120px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            position: relative;
+            margin-bottom: -100px; /* カードの重なりを表現 */
+        }
+        
+        .tableau-card:last-child {
+            margin-bottom: 0; /* 最後のカードは重ならない */
+        }
+
+        .tableau-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        .tableau-card.selected {
+            transform: translateY(-10px);
+            box-shadow: 0 0 20px rgba(255, 255, 0, 0.8);
+            border: 3px solid #ffd700;
+        }
+
+        .waste-card {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .waste-card:hover {
+            transform: scale(1.05);
+        }
+
+        .card-rank.top-left {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .card-rank.bottom-right {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transform: rotate(180deg);
+        }
+
+        .card-suit.center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 32px;
+        }
+
+        /* カードが移動中のアニメーション */
+        .card.moving {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+        }
+        
+        /* ドラッグ&ドロップ関連のスタイル */
+        .card.dragging {
+            opacity: 0.8;
+            transform: scale(1.1) rotate(5deg);
+            z-index: 2000;
+            cursor: grabbing;
+            pointer-events: none;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .card.draggable {
+            cursor: grab;
+        }
+        
+        .card.draggable:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+        }
+        
+        .drop-zone {
+            border: 3px dashed rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .drop-zone.drag-over {
+            border-color: #ffd700;
+            background: rgba(255, 215, 0, 0.2);
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+        
+        .drop-zone.valid-drop {
+            border-color: #28a745;
+            background: rgba(40, 167, 69, 0.2);
+        }
+        
+        .drop-zone.invalid-drop {
+            border-color: #dc3545;
+            background: rgba(220, 53, 69, 0.2);
+        }
+        
+        /* ドラッグプレビュー */
+        .drag-preview {
+            position: fixed;
+            pointer-events: none;
+            z-index: 3000;
+            opacity: 0.9;
+            transform: rotate(-10deg);
+        }
+
+        /* 勝利時のアニメーション */
+        .victory-card {
+            animation: victoryBounce 0.6s ease-in-out;
+        }
+
+        @keyframes victoryBounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-20px);
+            }
+            60% {
+                transform: translateY(-10px);
+            }
+        }
+
+        /* レスポンシブ対応 */
+        @media (max-width: 1024px) {
+            .solitaire-board {
+                padding: 10px;
+            }
+            
+            .foundation-area {
+                gap: 10px;
+            }
+            
+            .tableau-area {
+                gap: 10px;
+            }
+            
+            .deck-slot, .waste-slot, .foundation-slot {
+                width: 70px;
+                height: 105px;
+            }
+            
+            .tableau-column {
+                width: 70px;
+            }
+            
+            .tableau-card {
+                width: 70px;
+                height: 105px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .top-row {
+                flex-direction: column;
+                gap: 20px;
+                align-items: center;
+            }
+            
+            .deck-area {
+                justify-content: center;
+            }
+            
+            .foundation-area {
+                justify-content: center;
+            }
+            
+            .deck-slot, .waste-slot, .foundation-slot {
+                width: 60px;
+                height: 90px;
+            }
+            
+            .tableau-column {
+                width: 60px;
+            }
+            
+            .tableau-card {
+                width: 60px;
+                height: 90px;
+            }
+            
+            .card-suit.center {
+                font-size: 24px;
+            }
+        }
+
+        .card {
+            width: 80px;
+            height: 120px;
+            background: linear-gradient(45deg, #fff, #f8f9fa);
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #333;
+            font-weight: bold;
+            font-size: 12px;
+            position: relative;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .card.red {
+            color: #e74c3c;
+        }
+
+        .card.black {
+            color: #2c3e50;
+        }
+
+        .card.face-down {
+            background: linear-gradient(45deg, #3742fa, #2f3542);
+            color: transparent;
+        }
+
+        .card.face-down::before {
+            content: '🎴';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: white;
+        }
+        
+        .card.hint-highlight {
+            border: 3px solid #ffd700;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+            animation: hintPulse 1s ease-in-out infinite alternate;
+        }
+        
+        @keyframes hintPulse {
+            0% {
+                box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+            }
+            100% {
+                box-shadow: 0 0 30px rgba(255, 215, 0, 1);
+            }
+        }
+
+        .card-suit {
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .card-rank {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .message-area {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .message {
+            margin-bottom: 5px;
+            opacity: 0;
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .player-info {
+            display: flex;
+            justify-content: space-around;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        .player {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            min-width: 120px;
+        }
+
+        .player.active {
+            background: rgba(255, 193, 7, 0.3);
+            border: 2px solid #ffc107;
+        }
+
+        .player-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .player-score {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        /* マウスカーソル表示用のスタイル */
+        .remote-cursor {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1000;
+            transition: all 0.1s ease;
+            filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3));
+        }
+
+        .cursor-icon {
+            width: 20px;
+            height: 20px;
+            position: relative;
+        }
+
+        .cursor-icon::before {
+            content: '👆';
+            font-size: 18px;
+            position: absolute;
+            top: -2px;
+            left: -2px;
+        }
+
+        .cursor-label {
+            position: absolute;
+            top: 25px;
+            left: 5px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .cursor-trail {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: currentColor;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: cursorTrail 0.8s ease-out forwards;
+        }
+
+        @keyframes cursorTrail {
+            0% {
+                opacity: 0.8;
+                transform: scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: scale(0.2);
+            }
+        }
+
+        /* プレイヤー毎の色分け */
+        .remote-cursor.player-1 {
+            color: #ff6b6b;
+        }
+
+        .remote-cursor.player-2 {
+            color: #4ecdc4;
+        }
+
+        .remote-cursor.player-3 {
+            color: #45b7d1;
+        }
+
+        .remote-cursor.player-4 {
+            color: #f9ca24;
+        }
+
+        .remote-cursor.player-5 {
+            color: #f0932b;
+        }
+
+        /* マウスカーソル情報表示エリア */
+        .cursor-info {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            max-width: 200px;
+            z-index: 999;
+        }
+
+        .cursor-info h4 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #ffc107;
+        }
+
+        .cursor-info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .status-bar {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .player-info {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .card-area {
+                grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+            }
+
+            .card {
+                width: 60px;
+                height: 90px;
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎴 ECS WASM マルチプレイソリティア</h1>
+        <p>Rust ECSエンジン × WebAssembly × リアルタイム通信</p>
+    </div>
+
+    <div class="status-bar">
+        <div class="status-item">
+            <div class="status-indicator" id="connectionStatus"></div>
+            <span id="connectionText">接続中...</span>
+        </div>
+        <div class="status-item">
+            <span>🎯 ゲーム: </span>
+            <span id="gameStatus">待機中</span>
+        </div>
+        <div class="status-item">
+            <span>⏱️ 経過時間: </span>
+            <span id="gameTime">00:00</span>
+        </div>
+    </div>
+
+    <div class="game-container">
+        <div class="controls">
+            <button class="btn" id="initGameBtn">🎮 ゲーム初期化</button>
+            <button class="btn secondary" id="newGameBtn" disabled>🆕 新しいゲーム</button>
+            <button class="btn secondary" id="connectBtn" disabled>🌐 サーバー接続</button>
+            <button class="btn secondary" id="shuffleBtn" disabled>🔀 シャッフル</button>
+            <button class="btn secondary" id="hintBtn" disabled>💡 ヒント</button>
+        </div>
+
+        <div class="player-info" id="playerInfo" style="display: none;">
+            <!-- プレイヤー情報がここに動的に追加される -->
+        </div>
+
+        <div class="game-board">
+            <div class="loading" id="loadingArea">
+                <div class="spinner"></div>
+                <p>WebAssemblyを読み込み中...</p>
+            </div>
+
+            <div class="card-area" id="cardArea" style="display: none;">
+                <!-- カードがここに動的に追加される -->
+            </div>
+        </div>
+
+        <div class="message-area" id="messageArea">
+            <div class="message">🎮 ECS WASM ソリティアゲームを開始します...</div>
+            <div class="message">📦 WebAssemblyモジュールを読み込み中...</div>
+        </div>
+    </div>
+
+    <!-- マウスカーソル情報表示エリア -->
+    <div class="cursor-info" id="cursorInfo" style="display: none;">
+        <h4>👆 オンラインプレイヤー</h4>
+        <div id="cursorList">
+            <!-- カーソル情報がここに動的に追加される -->
+        </div>
+    </div>
+
+    <script type="module">
+        // WebAssemblyモジュールの読み込み
+        import init, { 
+            initialize_game, 
+            start_new_game, 
+            update_game, 
+            get_connection_status,
+            get_solitaire_state,
+            move_card,
+            draw_card_from_deck,
+            reset_solitaire_game,
+            try_auto_place,
+            check_victory,
+            get_hint
+        } from './pkg/ecs_wasm_solitaire.js';
+
+        // グローバル変数
+        let wasmModule = null;
+        let gameRunning = false;
+        let gameStartTime = null;
+        let animationFrame = null;
+        let lastUpdate = performance.now();
+        
+        // マウスカーソル関連の変数
+        let localPlayerId = null;
+        let remoteCursors = new Map(); // playerId -> cursor data
+        let webSocket = null;
+        let mousePosition = { x: 0, y: 0 };
+        let lastMouseSent = 0;
+        const MOUSE_SEND_INTERVAL = 50; // 50ms間隔でマウス位置を送信
+        
+        // ドラッグ&ドロップ関連の変数
+        let draggedCard = null;
+        let dragStartPos = { x: 0, y: 0 };
+        let dragOffset = { x: 0, y: 0 };
+        let isDragging = false;
+        let dragPreview = null;
+        let dropZones = [];
+        let currentDropZone = null;
+
+        // DOM要素の取得
+        const elements = {
+            loadingArea: document.getElementById('loadingArea'),
+            cardArea: document.getElementById('cardArea'),
+            messageArea: document.getElementById('messageArea'),
+            playerInfo: document.getElementById('playerInfo'),
+            connectionStatus: document.getElementById('connectionStatus'),
+            connectionText: document.getElementById('connectionText'),
+            gameStatus: document.getElementById('gameStatus'),
+            gameTime: document.getElementById('gameTime'),
+            initGameBtn: document.getElementById('initGameBtn'),
+            newGameBtn: document.getElementById('newGameBtn'),
+            connectBtn: document.getElementById('connectBtn'),
+            shuffleBtn: document.getElementById('shuffleBtn'),
+            hintBtn: document.getElementById('hintBtn'),
+            cursorInfo: document.getElementById('cursorInfo'),
+            cursorList: document.getElementById('cursorList')
+        };
+
+        // メッセージ表示関数
+        function addMessage(message, type = 'info') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            messageDiv.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+            elements.messageArea.appendChild(messageDiv);
+            elements.messageArea.scrollTop = elements.messageArea.scrollHeight;
+        }
+
+        // ゲーム時間更新関数
+        function updateGameTime() {
+            if (gameStartTime) {
+                const elapsed = Date.now() - gameStartTime;
+                const minutes = Math.floor(elapsed / 60000);
+                const seconds = Math.floor((elapsed % 60000) / 1000);
+                elements.gameTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        // 接続状態更新関数
+        function updateConnectionStatus(connected = false) {
+            if (connected) {
+                elements.connectionStatus.classList.add('connected');
+                elements.connectionText.textContent = '接続済み';
+            } else {
+                elements.connectionStatus.classList.remove('connected');
+                elements.connectionText.textContent = '切断中';
+            }
+        }
+
+        // マウスカーソル関連の関数群
+        function createRemoteCursor(playerId, playerName, playerIndex = 1) {
+            // 既存のカーソルを削除
+            removeRemoteCursor(playerId);
+            
+            const cursorDiv = document.createElement('div');
+            cursorDiv.className = `remote-cursor player-${playerIndex}`;
+            cursorDiv.id = `cursor-${playerId}`;
+            cursorDiv.style.display = 'none';
+            
+            cursorDiv.innerHTML = `
+                <div class="cursor-icon"></div>
+                <div class="cursor-label">${playerName}</div>
+            `;
+            
+            document.body.appendChild(cursorDiv);
+            
+            remoteCursors.set(playerId, {
+                element: cursorDiv,
+                name: playerName,
+                index: playerIndex,
+                lastUpdate: Date.now(),
+                x: 0,
+                y: 0
+            });
+            
+            updateCursorInfo();
+            addMessage(`👆 ${playerName} のカーソルが表示されました`);
+        }
+
+        function updateRemoteCursor(playerId, x, y) {
+            const cursorData = remoteCursors.get(playerId);
+            if (!cursorData) return;
+            
+            const { element } = cursorData;
+            element.style.display = 'block';
+            element.style.left = `${x}px`;
+            element.style.top = `${y}px`;
+            
+            // 軌跡エフェクトを追加
+            createCursorTrail(x, y, cursorData.index);
+            
+            // データを更新
+            cursorData.x = x;
+            cursorData.y = y;
+            cursorData.lastUpdate = Date.now();
+        }
+
+        function removeRemoteCursor(playerId) {
+            const cursorData = remoteCursors.get(playerId);
+            if (cursorData && cursorData.element) {
+                cursorData.element.remove();
+            }
+            remoteCursors.delete(playerId);
+            updateCursorInfo();
+        }
+
+        function createCursorTrail(x, y, playerIndex) {
+            const trail = document.createElement('div');
+            trail.className = `cursor-trail player-${playerIndex}`;
+            trail.style.left = `${x}px`;
+            trail.style.top = `${y}px`;
+            
+            document.body.appendChild(trail);
+            
+            // アニメーション完了後に要素を削除
+            setTimeout(() => {
+                trail.remove();
+            }, 800);
+        }
+
+        function updateCursorInfo() {
+            const cursorCount = remoteCursors.size;
+            
+            if (cursorCount > 0) {
+                elements.cursorInfo.style.display = 'block';
+                elements.cursorList.innerHTML = '';
+                
+                remoteCursors.forEach((cursorData, playerId) => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'cursor-info-item';
+                    itemDiv.innerHTML = `
+                        <span class="player-${cursorData.index}">${cursorData.name}</span>
+                        <span>(${Math.round(cursorData.x)}, ${Math.round(cursorData.y)})</span>
+                    `;
+                    elements.cursorList.appendChild(itemDiv);
+                });
+            } else {
+                elements.cursorInfo.style.display = 'none';
+            }
+        }
+
+        function sendMousePosition(x, y) {
+            if (!webSocket || webSocket.readyState !== WebSocket.OPEN) return;
+            
+            const now = Date.now();
+            if (now - lastMouseSent < MOUSE_SEND_INTERVAL) return;
+            
+            const message = {
+                type: 'MousePosition',
+                player_id: localPlayerId,
+                x: x,
+                y: y,
+                timestamp: now
+            };
+            
+            webSocket.send(JSON.stringify(message));
+            lastMouseSent = now;
+        }
+
+        function handleWebSocketMessage(event) {
+            try {
+                const message = JSON.parse(event.data);
+                console.log('📥 受信メッセージ:', message);
+                
+                switch (message.type) {
+                    case 'PlayerJoin':
+                        createRemoteCursor(
+                            message.player_id, 
+                            message.player_name, 
+                            message.player_index || 1
+                        );
+                        addMessage(`🎮 ${message.player_name} が参加しました`);
+                        break;
+                        
+                    case 'PlayerLeft':
+                        removeRemoteCursor(message.player_id);
+                        addMessage(`👋 ${message.player_name} が退出しました`);
+                        break;
+                        
+                    case 'MousePosition':
+                        if (message.player_id !== localPlayerId) {
+                            updateRemoteCursor(message.player_id, message.x, message.y);
+                        }
+                        break;
+                        
+                    case 'GameAction':
+                        addMessage(`🎯 ${message.player_name}: ${message.action}`);
+                        break;
+                        
+                    case 'Error':
+                        addMessage(`❌ サーバーエラー: ${message.message}`);
+                        break;
+                        
+                    default:
+                        console.log('未知のメッセージタイプ:', message.type);
+                        addMessage(`⚠️ 未知のメッセージ: ${message.type}`);
+                }
+            } catch (error) {
+                console.error('WebSocket message parse error:', error);
+                addMessage(`❌ メッセージ解析エラー: ${error.message}`);
+            }
+        }
+
+        // テスト用のダミーカーソル生成関数
+        function createTestCursors() {
+            const testPlayers = [
+                { id: 'test-alice', name: 'Alice', index: 1 },
+                { id: 'test-bob', name: 'Bob', index: 2 },
+                { id: 'test-carol', name: 'Carol', index: 3 }
+            ];
+            
+            testPlayers.forEach((player, i) => {
+                createRemoteCursor(player.id, player.name, player.index);
+                
+                // ランダムな位置にカーソルを配置
+                const x = 200 + i * 150 + Math.random() * 100;
+                const y = 300 + Math.random() * 200;
+                updateRemoteCursor(player.id, x, y);
+            });
+            
+            addMessage('🧪 テスト用カーソルを3つ作成しました');
+        }
+
+        // Windowsソリティアのレイアウトを表示
+        function displayWindowsSolitaire() {
+            elements.cardArea.innerHTML = '';
+            elements.cardArea.className = 'solitaire-board';
+            
+            // Windowsソリティアの正確なレイアウトを作成
+            const boardHTML = `
+                <!-- 上段：デッキ、ウェイスト、ファウンデーション -->
+                <div class="top-row">
+                    <!-- デッキエリア -->
+                    <div class="deck-area">
+                        <div class="deck-slot" id="deckSlot">
+                            <div class="card face-down deck-card" id="deck">🎴</div>
+                        </div>
+                        <div class="waste-slot" id="wasteSlot">
+                            <!-- ウェイストカードがここに表示される -->
+                        </div>
+                    </div>
+                    
+                    <!-- ファウンデーションエリア -->
+                    <div class="foundation-area">
+                        <div class="foundation-slot" data-foundation="0">
+                            <div class="foundation-placeholder">♠<br>A</div>
+                        </div>
+                        <div class="foundation-slot" data-foundation="1">
+                            <div class="foundation-placeholder">♥<br>A</div>
+                        </div>
+                        <div class="foundation-slot" data-foundation="2">
+                            <div class="foundation-placeholder">♦<br>A</div>
+                        </div>
+                        <div class="foundation-slot" data-foundation="3">
+                            <div class="foundation-placeholder">♣<br>A</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 下段：タブロー（7列） -->
+                <div class="tableau-area">
+                    ${Array.from({length: 7}, (_, i) => `
+                        <div class="tableau-column" data-column="${i}">
+                            <!-- タブローカードがここに動的に追加される -->
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            elements.cardArea.innerHTML = boardHTML;
+            
+            // Windowsソリティアのカード配置をシミュレート
+            createWindowsSolitaireCards();
+            
+            // イベントリスナーを設定
+            setupSolitaireEventListeners();
+        }
+        
+        // Windowsソリティアのカード配置を作成
+        function createWindowsSolitaireCards() {
+            const suits = ['♠', '♥', '♦', '♣'];
+            const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+            
+            // 52枚のカードデッキを作成
+            const deck = [];
+            suits.forEach(suit => {
+                ranks.forEach(rank => {
+                    deck.push({ suit, rank, isRed: suit === '♥' || suit === '♦' });
+                });
+            });
+            
+            // カードをシャッフル（簡単な実装）
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+            
+            let cardIndex = 0;
+            
+            // タブローにカードを配置（Windowsソリティアのルール通り）
+            for (let column = 0; column < 7; column++) {
+                const columnDiv = document.querySelector(`[data-column="${column}"]`);
+                
+                // 各列に1〜7枚のカードを配置
+                for (let row = 0; row <= column; row++) {
+                    if (cardIndex >= deck.length) break;
+                    
+                    const card = deck[cardIndex];
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = `card tableau-card ${card.isRed ? 'red' : 'black'}`;
+                    cardDiv.dataset.suit = card.suit;
+                    cardDiv.dataset.rank = card.rank;
+                    cardDiv.dataset.cardIndex = cardIndex;
+                    
+                    // 最上位のカードのみ表向き
+                    const isFaceUp = (row === column);
+                    if (isFaceUp) {
+                        cardDiv.innerHTML = `
+                            <div class="card-rank top-left">${card.rank}</div>
+                            <div class="card-suit center">${card.suit}</div>
+                            <div class="card-rank bottom-right">${card.rank}</div>
+                        `;
+                    } else {
+                        cardDiv.classList.add('face-down');
+                        cardDiv.innerHTML = '🎴';
+                    }
+                    
+                    // 重なりを表現
+                    cardDiv.style.position = 'absolute';
+                    cardDiv.style.top = `${row * 25}px`;
+                    cardDiv.style.zIndex = row;
+                    
+                    columnDiv.appendChild(cardDiv);
+                    cardIndex++;
+                }
+            }
+            
+            addMessage(`🎮 Windowsソリティア配置完了: タブロー${cardIndex}枚, デッキ${deck.length - cardIndex}枚`);
+        }
+        
+        // ソリティア専用のイベントリスナーを設定
+        function setupSolitaireEventListeners() {
+            // デッキクリック（カードを引く）
+            document.getElementById('deck').addEventListener('click', () => {
+                addMessage('🎴 デッキからカードを引きました');
+                drawCardFromDeck();
+            });
+            
+            // カードのクリックイベント
+            document.addEventListener('click', (event) => {
+                if (event.target.classList.contains('tableau-card')) {
+                    handleCardClick(event.target);
+                }
+            });
+            
+            // カードのダブルクリック（自動配置）
+            document.addEventListener('dblclick', (event) => {
+                if (event.target.classList.contains('tableau-card') || 
+                    event.target.classList.contains('waste-card')) {
+                    handleCardDoubleClick(event.target);
+                }
+            });
+            
+            // ドラッグ&ドロップのイベントリスナーを設定
+            setupDragAndDrop();
+        }
+        
+        // ドラッグ&ドロップ機能の設定
+        function setupDragAndDrop() {
+            // ドロップゾーンを特定
+            dropZones = [
+                ...document.querySelectorAll('.foundation-slot'),
+                ...document.querySelectorAll('.tableau-column'),
+                document.getElementById('wasteSlot')
+            ];
+            
+            // カードにドラッグ可能フラグを設定
+            updateDraggableCards();
+            
+            // グローバルなマウスイベントリスナー
+            document.addEventListener('mousedown', handleMouseDown);
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            
+            // タッチイベント対応
+            document.addEventListener('touchstart', handleTouchStart, { passive: false });
+            document.addEventListener('touchmove', handleTouchMove, { passive: false });
+            document.addEventListener('touchend', handleTouchEnd, { passive: false });
+        }
+        
+        // ドラッグ可能なカードを更新
+        function updateDraggableCards() {
+            // すべてのカードからドラッグ可能フラグを削除
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.remove('draggable');
+            });
+            
+            // タブローの最上位カードを ドラッグ可能にする
+            document.querySelectorAll('.tableau-column').forEach(column => {
+                const cards = column.querySelectorAll('.tableau-card:not(.face-down)');
+                if (cards.length > 0) {
+                    const topCard = cards[cards.length - 1];
+                    topCard.classList.add('draggable');
+                }
+            });
+            
+            // ウェイストカードをドラッグ可能にする
+            const wasteCards = document.querySelectorAll('.waste-card');
+            if (wasteCards.length > 0) {
+                wasteCards[wasteCards.length - 1].classList.add('draggable');
+            }
+        }
+        
+        // マウスダウンイベント処理
+        function handleMouseDown(event) {
+            const card = event.target.closest('.card.draggable');
+            if (!card) return;
+            
+            event.preventDefault();
+            startDrag(card, event.clientX, event.clientY);
+        }
+        
+        // タッチスタートイベント処理
+        function handleTouchStart(event) {
+            const card = event.target.closest('.card.draggable');
+            if (!card) return;
+            
+            event.preventDefault();
+            const touch = event.touches[0];
+            startDrag(card, touch.clientX, touch.clientY);
+        }
+        
+        // ドラッグ開始
+        function startDrag(card, clientX, clientY) {
+            draggedCard = card;
+            isDragging = true;
+            
+            const rect = card.getBoundingClientRect();
+            dragOffset.x = clientX - rect.left;
+            dragOffset.y = clientY - rect.top;
+            dragStartPos.x = clientX;
+            dragStartPos.y = clientY;
+            
+            // ドラッグプレビューを作成
+            createDragPreview(card, clientX, clientY);
+            
+            // カードにドラッグ中のスタイルを適用
+            card.classList.add('dragging');
+            
+            // ドロップゾーンをハイライト
+            highlightDropZones(card);
+            
+            addMessage(`🖱️ ドラッグ開始: ${card.dataset.rank}${card.dataset.suit}`);
+        }
+        
+        // ドラッグプレビューを作成
+        function createDragPreview(card, clientX, clientY) {
+            dragPreview = card.cloneNode(true);
+            dragPreview.classList.add('drag-preview');
+            dragPreview.classList.remove('draggable', 'dragging');
+            dragPreview.style.left = `${clientX - dragOffset.x}px`;
+            dragPreview.style.top = `${clientY - dragOffset.y}px`;
+            dragPreview.style.width = `${card.offsetWidth}px`;
+            dragPreview.style.height = `${card.offsetHeight}px`;
+            
+            document.body.appendChild(dragPreview);
+        }
+        
+        // マウス移動イベント処理
+        function handleMouseMove(event) {
+            if (!isDragging || !dragPreview) return;
+            
+            updateDragPreview(event.clientX, event.clientY);
+            updateDropZoneHighlight(event.clientX, event.clientY);
+        }
+        
+        // タッチ移動イベント処理
+        function handleTouchMove(event) {
+            if (!isDragging || !dragPreview) return;
+            
+            event.preventDefault();
+            const touch = event.touches[0];
+            updateDragPreview(touch.clientX, touch.clientY);
+            updateDropZoneHighlight(touch.clientX, touch.clientY);
+        }
+        
+        // ドラッグプレビューを更新
+        function updateDragPreview(clientX, clientY) {
+            dragPreview.style.left = `${clientX - dragOffset.x}px`;
+            dragPreview.style.top = `${clientY - dragOffset.y}px`;
+        }
+        
+        // ドロップゾーンのハイライトを更新
+        function updateDropZoneHighlight(clientX, clientY) {
+            const elementUnder = document.elementFromPoint(clientX, clientY);
+            const dropZone = elementUnder ? elementUnder.closest('.foundation-slot, .tableau-column, #wasteSlot') : null;
+            
+            // 前のドロップゾーンのハイライトを削除
+            if (currentDropZone && currentDropZone !== dropZone) {
+                currentDropZone.classList.remove('drag-over', 'valid-drop', 'invalid-drop');
+            }
+            
+            currentDropZone = dropZone;
+            
+            if (dropZone) {
+                dropZone.classList.add('drag-over');
+                
+                // ドロップが有効かチェック
+                if (isValidDrop(draggedCard, dropZone)) {
+                    dropZone.classList.add('valid-drop');
+                    dropZone.classList.remove('invalid-drop');
+                } else {
+                    dropZone.classList.add('invalid-drop');
+                    dropZone.classList.remove('valid-drop');
+                }
+            }
+        }
+        
+        // マウスアップイベント処理
+        function handleMouseUp(event) {
+            if (!isDragging) return;
+            
+            finishDrag(event.clientX, event.clientY);
+        }
+        
+        // タッチエンドイベント処理
+        function handleTouchEnd(event) {
+            if (!isDragging) return;
+            
+            event.preventDefault();
+            const touch = event.changedTouches[0];
+            finishDrag(touch.clientX, touch.clientY);
+        }
+        
+        // ドラッグ終了
+        function finishDrag(clientX, clientY) {
+            if (!draggedCard) return;
+            
+            const elementUnder = document.elementFromPoint(clientX, clientY);
+            const dropZone = elementUnder ? elementUnder.closest('.foundation-slot, .tableau-column, #wasteSlot') : null;
+            
+            let success = false;
+            
+            if (dropZone && isValidDrop(draggedCard, dropZone)) {
+                success = performDrop(draggedCard, dropZone);
+                
+                if (success) {
+                    addMessage(`✅ カード移動成功: ${draggedCard.dataset.rank}${draggedCard.dataset.suit}`);
+                    
+                    // ネットワークでブロードキャスト
+                    broadcastCardMove(draggedCard, dropZone);
+                } else {
+                    addMessage(`❌ カード移動失敗: ${draggedCard.dataset.rank}${draggedCard.dataset.suit}`);
+                }
+            } else {
+                addMessage(`❌ 無効な移動先: ${draggedCard.dataset.rank}${draggedCard.dataset.suit}`);
+            }
+            
+            // ドラッグ状態をクリーンアップ
+            cleanupDrag(success);
+        }
+        
+        // ドロップが有効かチェック
+        function isValidDrop(card, dropZone) {
+            if (!card || !dropZone) return false;
+            
+            const cardSuit = card.dataset.suit;
+            const cardRank = card.dataset.rank;
+            
+            if (dropZone.classList.contains('foundation-slot')) {
+                // ファウンデーションへのドロップルール
+                return isValidFoundationDrop(cardSuit, cardRank, dropZone);
+            } else if (dropZone.classList.contains('tableau-column')) {
+                // タブローへのドロップルール
+                return isValidTableauDrop(cardSuit, cardRank, dropZone);
+            }
+            
+            return false;
+        }
+        
+        // ファウンデーションへのドロップが有効かチェック
+        function isValidFoundationDrop(cardSuit, cardRank, foundation) {
+            const foundationCards = foundation.querySelectorAll('.card:not(.foundation-placeholder)');
+            
+            if (foundationCards.length === 0) {
+                // 空のファウンデーション: Aのみ
+                return cardRank === 'A';
+            }
+            
+            const topCard = foundationCards[foundationCards.length - 1];
+            const topSuit = topCard.dataset.suit;
+            const topRank = topCard.dataset.rank;
+            
+            // 同じスートで次の数字
+            return cardSuit === topSuit && getNextRank(topRank) === cardRank;
+        }
+        
+        // タブローへのドロップが有効かチェック
+        function isValidTableauDrop(cardSuit, cardRank, tableau) {
+            const tableauCards = tableau.querySelectorAll('.tableau-card:not(.face-down)');
+            
+            if (tableauCards.length === 0) {
+                // 空のタブロー: Kのみ
+                return cardRank === 'K';
+            }
+            
+            const topCard = tableauCards[tableauCards.length - 1];
+            const topSuit = topCard.dataset.suit;
+            const topRank = topCard.dataset.rank;
+            
+            // 異なる色で1小さい数字
+            const cardColor = getCardColor(cardSuit);
+            const topColor = getCardColor(topSuit);
+            
+            return cardColor !== topColor && getPreviousRank(topRank) === cardRank;
+        }
+        
+        // 実際のドロップを実行
+        function performDrop(card, dropZone) {
+            try {
+                // RustのWebAssembly関数を呼び出して移動の妥当性をチェック
+                const fromLocation = JSON.stringify({
+                    type: getCardLocation(card),
+                    position: getCardPosition(card)
+                });
+                
+                const toLocation = JSON.stringify({
+                    type: getDropZoneType(dropZone),
+                    position: getDropZonePosition(dropZone)
+                });
+                
+                const moveResult = move_card(fromLocation, toLocation);
+                
+                if (moveResult) {
+                    // DOM上でカードを移動
+                    moveCardToDropZone(card, dropZone);
+                    updateGameDisplay();
+                    updateDraggableCards();
+                    return true;
+                }
+            } catch (error) {
+                console.error('カード移動エラー:', error);
+            }
+            
+            return false;
+        }
+        
+        // DOM上でカードを移動
+        function moveCardToDropZone(card, dropZone) {
+            // アニメーション付きでカードを移動
+            const dropRect = dropZone.getBoundingClientRect();
+            const cardRect = card.getBoundingClientRect();
+            
+            // 既存のスタイルをリセット
+            card.style.position = '';
+            card.style.top = '';
+            card.style.left = '';
+            card.style.transform = '';
+            card.style.transition = 'all 0.3s ease';
+            
+            // 正確な移動距離を計算
+            const deltaX = dropRect.left - cardRect.left;
+            const deltaY = dropRect.top - cardRect.top;
+            card.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+            
+            setTimeout(() => {
+                // 移動先にカードを配置
+                card.style.transition = '';
+                card.style.transform = '';
+                card.style.position = '';
+                card.style.top = '';
+                card.style.left = '';
+                
+                if (dropZone.classList.contains('foundation-slot')) {
+                    // ファウンデーションの場合はそのまま追加
+                    dropZone.appendChild(card);
+                } else if (dropZone.classList.contains('tableau-column')) {
+                    // タブローの場合は適切な位置に配置
+                    const existingCards = dropZone.querySelectorAll('.tableau-card');
+                    
+                    // タブローカードのスタイルを適用
+                    card.className = 'card tableau-card ' + (card.classList.contains('red') ? 'red' : 'black');
+                    
+                    // CSSで定義したスタイルを使用（position: relativeとmargin-bottomで重なりを表現）
+                    // 追加のスタイル調整は必要なし - CSSが自動で処理
+                    
+                    dropZone.appendChild(card);
+                } else {
+                    // その他の場合（ウェイストなど）
+                    dropZone.appendChild(card);
+                }
+                
+                // ドラッグ可能状態を更新
+                updateDraggableCards();
+                
+                // 勝利条件をチェック
+                checkVictoryCondition();
+            }, 300);
+        }
+        
+        // カードネットワークブロードキャスト
+        function broadcastCardMove(card, dropZone) {
+            if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                const moveMessage = {
+                    type: 'GameAction',
+                    player_id: localPlayerId,
+                    player_name: 'Player1', // TODO: 実際のプレイヤー名を使用
+                    action: `カード移動: ${card.dataset.rank}${card.dataset.suit} → ${getDropZoneDescription(dropZone)}`,
+                    timestamp: Date.now()
+                };
+                webSocket.send(JSON.stringify(moveMessage));
+            }
+        }
+        
+        // ドラッグ状態をクリーンアップ
+        function cleanupDrag(success) {
+            if (draggedCard) {
+                draggedCard.classList.remove('dragging');
+                
+                if (!success) {
+                    // 失敗時はカードを元の位置に戻す
+                    animateCardBack(draggedCard);
+                }
+            }
+            
+            if (dragPreview) {
+                dragPreview.remove();
+                dragPreview = null;
+            }
+            
+            // ドロップゾーンのハイライトを削除
+            dropZones.forEach(zone => {
+                zone.classList.remove('drag-over', 'valid-drop', 'invalid-drop');
+            });
+            
+            draggedCard = null;
+            isDragging = false;
+            currentDropZone = null;
+        }
+        
+        // ドロップゾーンをハイライト
+        function highlightDropZones(card) {
+            dropZones.forEach(zone => {
+                zone.classList.add('drop-zone');
+            });
+        }
+        
+        // カードを元の位置に戻すアニメーション
+        function animateCardBack(card) {
+            // 既存のスタイルをリセットして元の位置に戻す
+            card.style.transition = 'all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+            card.style.transform = '';
+            card.style.position = '';
+            card.style.top = '';
+            card.style.left = '';
+            
+            setTimeout(() => {
+                card.style.transition = '';
+                // ドラッグ関連のクラスも確実に削除
+                card.classList.remove('dragging', 'selected');
+            }, 500);
+        }
+        
+        // ユーティリティ関数群
+        function getCardColor(suit) {
+            return (suit === '♥' || suit === '♦') ? 'red' : 'black';
+        }
+        
+        function getNextRank(rank) {
+            const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+            const index = ranks.indexOf(rank);
+            return index < ranks.length - 1 ? ranks[index + 1] : null;
+        }
+        
+        function getPreviousRank(rank) {
+            const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+            const index = ranks.indexOf(rank);
+            return index > 0 ? ranks[index - 1] : null;
+        }
+        
+        function getCardLocation(card) {
+            if (card.classList.contains('tableau-card')) return 'tableau';
+            if (card.classList.contains('waste-card')) return 'waste';
+            if (card.closest('.foundation-slot')) return 'foundation';
+            return 'unknown';
+        }
+        
+        function getCardPosition(card) {
+            const parent = card.parentElement;
+            if (parent.classList.contains('tableau-column')) {
+                return parseInt(parent.dataset.column) || 0;
+            }
+            if (parent.classList.contains('foundation-slot')) {
+                return parseInt(parent.dataset.foundation) || 0;
+            }
+            return 0;
+        }
+        
+        function getDropZoneType(dropZone) {
+            if (dropZone.classList.contains('foundation-slot')) return 'foundation';
+            if (dropZone.classList.contains('tableau-column')) return 'tableau';
+            if (dropZone.id === 'wasteSlot') return 'waste';
+            return 'unknown';
+        }
+        
+        function getDropZonePosition(dropZone) {
+            if (dropZone.dataset.column) return parseInt(dropZone.dataset.column);
+            if (dropZone.dataset.foundation) return parseInt(dropZone.dataset.foundation);
+            return 0;
+        }
+        
+        function getDropZoneDescription(dropZone) {
+            if (dropZone.classList.contains('foundation-slot')) {
+                return `ファウンデーション${parseInt(dropZone.dataset.foundation) + 1}`;
+            }
+            if (dropZone.classList.contains('tableau-column')) {
+                return `タブロー列${parseInt(dropZone.dataset.column) + 1}`;
+            }
+            return 'ウェイスト';
+        }
+        
+        // デッキからカードを引く処理
+        function drawCardFromDeck() {
+            try {
+                // RustのWebAssembly関数を呼び出し
+                const cardInfoJson = draw_card_from_deck();
+                
+                if (!cardInfoJson) {
+                    addMessage('⚠️ デッキにカードがありません');
+                    return;
+                }
+                
+                const cardInfo = JSON.parse(cardInfoJson);
+                const wasteSlot = document.getElementById('wasteSlot');
+                
+                // 既存のウェイストカードを削除
+                wasteSlot.innerHTML = '';
+                
+                // 新しいカードを表示
+                const isRed = cardInfo.suit === '♥' || cardInfo.suit === '♦';
+                
+                const wasteCard = document.createElement('div');
+                wasteCard.className = `card waste-card ${isRed ? 'red' : 'black'}`;
+                wasteCard.dataset.suit = cardInfo.suit;
+                wasteCard.dataset.rank = cardInfo.rank;
+                wasteCard.innerHTML = `
+                    <div class="card-rank top-left">${cardInfo.rank}</div>
+                    <div class="card-suit center">${cardInfo.suit}</div>
+                    <div class="card-rank bottom-right">${cardInfo.rank}</div>
+                `;
+                
+                wasteSlot.appendChild(wasteCard);
+                
+                addMessage(`🎴 デッキから${cardInfo.rank}${cardInfo.suit}を引きました`);
+                
+                // ゲーム状態を更新
+                updateGameDisplay();
+                
+            } catch (error) {
+                addMessage(`❌ カード描画エラー: ${error.message}`);
+                console.error('Draw card error:', error);
+            }
+        }
+        
+        // カードクリック処理
+        function handleCardClick(cardElement) {
+            const suit = cardElement.dataset.suit;
+            const rank = cardElement.dataset.rank;
+            
+            // カードの選択状態をトグル
+            if (cardElement.classList.contains('selected')) {
+                cardElement.classList.remove('selected');
+                addMessage(`❌ カード選択解除: ${rank}${suit}`);
+            } else {
+                // 他の選択されたカードを解除
+                document.querySelectorAll('.card.selected').forEach(card => {
+                    card.classList.remove('selected');
+                });
+                
+                cardElement.classList.add('selected');
+                addMessage(`✅ カード選択: ${rank}${suit}`);
+            }
+        }
+        
+        // カードダブルクリック処理（自動配置）
+        function handleCardDoubleClick(cardElement) {
+            const suit = cardElement.dataset.suit;
+            const rank = cardElement.dataset.rank;
+            
+            addMessage(`🚀 自動配置試行: ${rank}${suit}`);
+            
+            try {
+                // カード情報をJSONで作成
+                const cardInfo = JSON.stringify({
+                    suit: suit,
+                    rank: rank,
+                    face_up: true
+                });
+                
+                // RustのWebAssembly関数を呼び出し
+                const success = try_auto_place(cardInfo);
+                
+                if (success) {
+                    addMessage(`✨ 自動配置成功: ${rank}${suit}`);
+                    
+                    // 成功した場合はカードを実際に移動（アニメーション付き）
+                    animateCardMove(cardElement);
+                    
+                    // ゲーム状態を更新
+                    updateGameDisplay();
+                    
+                    // 勝利条件をチェック
+                    checkVictoryCondition();
+                } else {
+                    addMessage(`⚠️ 自動配置できませんでした: ${rank}${suit}`);
+                }
+                
+            } catch (error) {
+                addMessage(`❌ 自動配置エラー: ${error.message}`);
+                console.error('Auto place error:', error);
+            }
+        }
+        
+        // カード移動アニメーション
+        function animateCardMove(cardElement) {
+            cardElement.classList.add('moving');
+            
+            // アニメーション完了後にカードを削除
+            setTimeout(() => {
+                cardElement.style.transform = 'translateY(-200px) scale(0.8)';
+                cardElement.style.opacity = '0';
+                
+                setTimeout(() => {
+                    cardElement.remove();
+                }, 300);
+            }, 100);
+        }
+        
+        // 勝利条件チェック
+        function checkVictoryCondition() {
+            try {
+                const victory = check_victory();
+                
+                if (victory) {
+                    addMessage('🎉 おめでとうございます！ゲームクリアです！');
+                    
+                    // 勝利エフェクト
+                    document.querySelectorAll('.card').forEach((card, index) => {
+                        setTimeout(() => {
+                            card.classList.add('victory-card');
+                        }, index * 100);
+                    });
+                    
+                    // ゲーム停止
+                    gameRunning = false;
+                    elements.gameStatus.textContent = 'ゲームクリア！';
+                }
+                
+            } catch (error) {
+                console.error('Victory check error:', error);
+            }
+        }
+
+        // ゲーム状態の表示を更新
+        function updateGameDisplay() {
+            try {
+                // RustのWebAssembly関数からゲーム状態を取得
+                const gameStateJson = get_solitaire_state();
+                const gameState = JSON.parse(gameStateJson);
+                
+                // スコアと移動回数を表示更新
+                addMessage(`📊 状態更新: 移動${gameState.moves}回, スコア${gameState.score}点`);
+                
+                // TODO: タブローとファウンデーションの表示を更新
+                
+            } catch (error) {
+                console.error('Game display update error:', error);
+            }
+        }
+        
+        // プレイヤー情報表示関数（テスト用）
+        function displayTestPlayers() {
+            elements.playerInfo.innerHTML = '';
+            const players = [
+                { name: 'Alice', score: 150, active: true },
+                { name: 'Bob', score: 120, active: false },
+                { name: 'Carol', score: 200, active: false }
+            ];
+            
+            players.forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = `player ${player.active ? 'active' : ''}`;
+                playerDiv.innerHTML = `
+                    <div class="player-name">${player.name}</div>
+                    <div class="player-score">スコア: ${player.score}</div>
+                `;
+                elements.playerInfo.appendChild(playerDiv);
+            });
+            
+            elements.playerInfo.style.display = 'flex';
+        }
+
+        // ゲームループ関数
+        function gameLoop(currentTime) {
+            if (!gameRunning) return;
+            
+            const deltaTime = currentTime - lastUpdate;
+            lastUpdate = currentTime;
+            
+            // WebAssemblyのupdate_game関数を呼び出し
+            if (wasmModule && typeof update_game === 'function') {
+                update_game(deltaTime);
+            }
+            
+            // ゲーム時間更新
+            updateGameTime();
+            
+            // 次のフレームを予約
+            animationFrame = requestAnimationFrame(gameLoop);
+        }
+
+        // イベントリスナーの設定
+        elements.initGameBtn.addEventListener('click', async () => {
+            try {
+                addMessage('🎮 ゲームを初期化中...');
+                elements.initGameBtn.disabled = true;
+                
+                if (wasmModule && typeof initialize_game === 'function') {
+                    const result = initialize_game();
+                    if (result) {
+                        addMessage('✅ ゲーム初期化完了！');
+                        elements.newGameBtn.disabled = false;
+                        elements.connectBtn.disabled = false;
+                        elements.gameStatus.textContent = '初期化完了';
+                        
+                        // Windowsソリティアの表示
+                        displayWindowsSolitaire();
+                        displayTestPlayers();
+                        
+                        elements.cardArea.style.display = 'grid';
+                    } else {
+                        addMessage('❌ ゲーム初期化に失敗しました');
+                    }
+                } else {
+                    addMessage('⚠️ WebAssemblyモジュールが正しく読み込まれていません');
+                }
+            } catch (error) {
+                addMessage(`❌ エラー: ${error.message}`);
+                console.error('Game initialization error:', error);
+            }
+        });
+
+        elements.newGameBtn.addEventListener('click', () => {
+            try {
+                addMessage('🆕 新しいゲームを開始中...');
+                
+                if (wasmModule && typeof start_new_game === 'function') {
+                    const playerName = 'Player1'; // 後でユーザー入力にする
+                    const sessionId = start_new_game(playerName);
+                    
+                    addMessage(`🎯 ゲーム開始！セッションID: ${sessionId}`);
+                    elements.gameStatus.textContent = 'プレイ中';
+                    gameStartTime = Date.now();
+                    gameRunning = true;
+                    
+                    // ゲームループ開始
+                    lastUpdate = performance.now();
+                    animationFrame = requestAnimationFrame(gameLoop);
+                    
+                    // ボタン状態更新
+                    elements.shuffleBtn.disabled = false;
+                    elements.hintBtn.disabled = false;
+                } else {
+                    addMessage('⚠️ ゲーム開始関数が利用できません');
+                }
+            } catch (error) {
+                addMessage(`❌ エラー: ${error.message}`);
+                console.error('New game error:', error);
+            }
+        });
+
+        elements.connectBtn.addEventListener('click', () => {
+            addMessage('🌐 WebSocketサーバーに接続中...');
+            
+            try {
+                webSocket = new WebSocket('ws://162.43.8.148:8101');
+                
+                webSocket.onopen = () => {
+                    updateConnectionStatus(true);
+                    addMessage('✅ WebSocketサーバーに接続しました');
+                    
+                    // プレイヤーIDを生成
+                    localPlayerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    
+                    // 参加メッセージを送信
+                    const joinMessage = {
+                        type: 'PlayerJoin',
+                        player_id: localPlayerId,
+                        player_name: 'Player1' // 後でユーザー入力にする
+                    };
+                    webSocket.send(JSON.stringify(joinMessage));
+                    addMessage(`👤 プレイヤーとして参加: ${localPlayerId}`);
+                };
+                
+                webSocket.onmessage = handleWebSocketMessage;
+                
+                webSocket.onclose = () => {
+                    updateConnectionStatus(false);
+                    addMessage('❌ WebSocket接続が切断されました');
+                    
+                    // 接続が切れた場合はテストモードに切り替え
+                    setTimeout(() => {
+                        updateConnectionStatus(true);
+                        addMessage('🔄 テストモードに切り替えました');
+                        localPlayerId = `test_player_${Date.now()}`;
+                        createTestCursors();
+                        startTestCursorAnimation();
+                    }, 2000);
+                };
+                
+                webSocket.onerror = (error) => {
+                    updateConnectionStatus(false);
+                    addMessage(`❌ WebSocket接続エラー: ${error.message || 'サーバーに接続できませんでした'}`);
+                    
+                    // エラーの場合もテストモードに切り替え
+                    setTimeout(() => {
+                        updateConnectionStatus(true);
+                        addMessage('🔄 テストモードに切り替えました');
+                        localPlayerId = `test_player_${Date.now()}`;
+                        createTestCursors();
+                        startTestCursorAnimation();
+                    }, 2000);
+                };
+                
+            } catch (error) {
+                addMessage(`❌ WebSocket接続失敗: ${error.message}`);
+                
+                // 失敗した場合はテストモードに切り替え
+                setTimeout(() => {
+                    updateConnectionStatus(true);
+                    addMessage('🔄 テストモードに切り替えました');
+                    localPlayerId = `test_player_${Date.now()}`;
+                    createTestCursors();
+                    startTestCursorAnimation();
+                }, 2000);
+            }
+        });
+
+        elements.shuffleBtn.addEventListener('click', () => {
+            try {
+                addMessage('🔀 ゲームをリセット中...');
+                
+                // RustのWebAssembly関数でゲームをリセット
+                const success = reset_solitaire_game();
+                
+                if (success) {
+                    addMessage('✅ ゲームをリセットしました');
+                    
+                    // 表示を再構築
+                    displayWindowsSolitaire();
+                    updateGameDisplay();
+                } else {
+                    addMessage('❌ ゲームリセットに失敗しました');
+                }
+                
+            } catch (error) {
+                addMessage(`❌ リセットエラー: ${error.message}`);
+                console.error('Reset error:', error);
+            }
+        });
+
+        elements.hintBtn.addEventListener('click', () => {
+            try {
+                addMessage('💡 ヒントを取得中...');
+                
+                // RustのWebAssembly関数でヒントを取得
+                const hintJson = get_hint();
+                const hint = JSON.parse(hintJson);
+                
+                addMessage(`💡 ヒント: ${hint.message}`);
+                
+                // ヒントに従って視覚的な指示を表示
+                highlightHintCards(hint);
+                
+            } catch (error) {
+                addMessage(`❌ ヒント取得エラー: ${error.message}`);
+                console.error('Hint error:', error);
+            }
+        });
+        
+        // ヒントに基づいてカードをハイライト
+        function highlightHintCards(hint) {
+            // 前のハイライトを削除
+            document.querySelectorAll('.card.hint-highlight').forEach(card => {
+                card.classList.remove('hint-highlight');
+            });
+            
+            if (hint.from && hint.to) {
+                // ヒント対象カードを3秒間ハイライト
+                setTimeout(() => {
+                    document.querySelectorAll('.card.hint-highlight').forEach(card => {
+                        card.classList.remove('hint-highlight');
+                    });
+                }, 3000);
+            }
+        }
+
+        // WebAssembly初期化
+        async function initializeWasm() {
+            try {
+                addMessage('📦 WebAssemblyモジュールを読み込み中...');
+                
+                wasmModule = await init();
+                
+                addMessage('✅ WebAssemblyモジュールの読み込み完了！');
+                addMessage('🎮 ゲーム初期化ボタンをクリックしてください');
+                
+                elements.loadingArea.style.display = 'none';
+                elements.initGameBtn.disabled = false;
+                
+                // 接続状態を定期的にチェック（テスト用）
+                setInterval(() => {
+                    if (wasmModule && typeof get_connection_status === 'function') {
+                        const status = get_connection_status();
+                        // addMessage(`📡 接続状態: ${status}`);
+                    }
+                }, 5000);
+                
+            } catch (error) {
+                addMessage(`❌ WebAssembly読み込みエラー: ${error.message}`);
+                console.error('WASM initialization error:', error);
+            }
+        }
+
+        // テスト用のカーソルアニメーション関数
+        function startTestCursorAnimation() {
+            setInterval(() => {
+                remoteCursors.forEach((cursorData, playerId) => {
+                    if (playerId.startsWith('test-')) {
+                        // ランダムに少し移動
+                        const newX = cursorData.x + (Math.random() - 0.5) * 100;
+                        const newY = cursorData.y + (Math.random() - 0.5) * 100;
+                        
+                        // 画面範囲内に制限
+                        const constrainedX = Math.max(0, Math.min(window.innerWidth - 50, newX));
+                        const constrainedY = Math.max(0, Math.min(window.innerHeight - 50, newY));
+                        
+                        updateRemoteCursor(playerId, constrainedX, constrainedY);
+                    }
+                });
+            }, 2000); // 2秒ごとに移動
+        }
+
+        // マウス追跡イベントリスナーを追加
+        document.addEventListener('mousemove', (event) => {
+            mousePosition.x = event.clientX;
+            mousePosition.y = event.clientY;
+            
+            // WebSocketが接続されている場合、マウス位置を送信
+            sendMousePosition(mousePosition.x, mousePosition.y);
+        });
+
+        // クリックイベントの追跡
+        document.addEventListener('click', (event) => {
+            if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+                const clickMessage = {
+                    type: 'GameAction',
+                    player_id: localPlayerId,
+                    player_name: 'Player1', // TODO: 実際のプレイヤー名を使用
+                    action: `クリック (${event.clientX}, ${event.clientY})`,
+                    x: event.clientX,
+                    y: event.clientY,
+                    timestamp: Date.now()
+                };
+                webSocket.send(JSON.stringify(clickMessage));
+            }
+            
+            // ローカルでのクリックエフェクト
+            createClickEffect(event.clientX, event.clientY);
+        });
+
+        // クリックエフェクト作成関数
+        function createClickEffect(x, y) {
+            const effect = document.createElement('div');
+            effect.style.position = 'absolute';
+            effect.style.left = `${x - 10}px`;
+            effect.style.top = `${y - 10}px`;
+            effect.style.width = '20px';
+            effect.style.height = '20px';
+            effect.style.borderRadius = '50%';
+            effect.style.background = 'rgba(255, 255, 255, 0.8)';
+            effect.style.pointerEvents = 'none';
+            effect.style.animation = 'clickEffect 0.6s ease-out forwards';
+            effect.style.zIndex = '9999';
+            
+            document.body.appendChild(effect);
+            
+            // アニメーション完了後に削除
+            setTimeout(() => {
+                effect.remove();
+            }, 600);
+        }
+
+        // CSSアニメーションを動的に追加
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes clickEffect {
+                0% {
+                    transform: scale(0.5);
+                    opacity: 1;
+                }
+                100% {
+                    transform: scale(3);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // アプリケーション開始
+        initializeWasm();
+        
+        // ページ終了時のクリーンアップ
+        window.addEventListener('beforeunload', () => {
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+            gameRunning = false;
+            
+            // WebSocket接続をクリーンアップ
+            if (webSocket) {
+                webSocket.close();
+            }
+            
+            // リモートカーソルをクリーンアップ
+            remoteCursors.forEach((cursorData) => {
+                if (cursorData.element) {
+                    cursorData.element.remove();
+                }
+            });
+            remoteCursors.clear();
+        });
+    </script>
+</body>
+</html>
